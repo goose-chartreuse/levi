@@ -1,9 +1,6 @@
 "use client";
-
 import { useState } from "react";
-
 import { useSpeechRecognition, useAudioAutoPlay } from "@/hooks";
-import { fetchOpenai, fetchOpenaiSpeech } from "@/fetchers";
 
 export const Initializer = () => {
   const [prompt, setPrompt] = useState("");
@@ -23,32 +20,65 @@ export const Initializer = () => {
 
   const sendRequestToOpenAI = async (textInput: string) => {
     try {
-      const response = await fetchOpenai(textInput);
+      const response = await fetch("/api/openai", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ prompt: textInput }),
+      });
 
-      if (response?.status === 200) {
-        setTextResponse(response.data.result);
+      if (!response.ok) {
+        throw new Error("Network response was not ok");
+      }
 
-        const speechResponse = await fetchOpenaiSpeech(response.data.result);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      setTextResponse("");
+      let receivedText = "";
+      let partialChunk = "";
 
-        if (speechResponse) {
-          if (speechResponse.status === 200) {
-            const blob = new Blob([speechResponse.data], { type: "audio/mp3" });
-            const blobUrl = URL.createObjectURL(blob);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-            setAudioSrc(blobUrl);
+        const textChunk = decoder.decode(value);
+        partialChunk += textChunk;
+
+        const messages = partialChunk.split("\n\n");
+
+        // Process all complete messages except the last one
+        for (let i = 0; i < messages.length - 1; i++) {
+          const message = messages[i];
+          if (message.startsWith("data: ")) {
+            const jsonData = message.substring(6);
+
+            if (jsonData !== "[DONE]") {
+              try {
+                const parsed = JSON.parse(jsonData);
+                const content = parsed.choices[0]?.delta?.content || "";
+                receivedText += content;
+                setTextResponse((prev) => prev + content);
+              } catch (e) {
+                console.error("Failed to parse JSON:", e);
+              }
+            } else {
+              console.log("Streaming complete.");
+            }
           }
         }
+
+        // Keep the last partial chunk for the next loop iteration
+        partialChunk = messages[messages.length - 1];
       }
     } catch (error) {
-      console.error("Error:", error);
+      console.error("Error fetching data:", error);
     }
   };
 
   const handleSubmit = async (e) => {
     if (prompt === "") return;
-
     if (e) e.preventDefault();
-
     sendRequestToOpenAI(prompt);
   };
 
