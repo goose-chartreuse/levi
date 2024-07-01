@@ -1,6 +1,9 @@
 "use client";
 import { useState } from "react";
 import { useSpeechRecognition, useAudioAutoPlay } from "@/hooks";
+import ReactMarkdown from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { atomDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 export const Initializer = () => {
   const [prompt, setPrompt] = useState("");
@@ -96,6 +99,40 @@ export const Initializer = () => {
     }
   };
 
+  const EnhancedExampleComponent = ({ markdownText }) => {
+    return (
+      <div className="markdown-container">
+        <ReactMarkdown
+          components={{
+            code: (props) => {
+              console.log(props);
+
+              return (
+                <SyntaxHighlighter
+                  language={props.lang}
+                  style={atomDark}
+                  customStyle={{
+                    whiteSpace: "pre-wrap",
+                    fontFamily: "monospace",
+                    backgroundColor: "#f0f0f0",
+                    padding: "10px",
+                    borderRadius: "4px",
+                    overflowX: "auto",
+                  }}
+                >
+                  {props.children}
+                </SyntaxHighlighter>
+              );
+            },
+          }}
+          className="code-container"
+        >
+          {markdownText}
+        </ReactMarkdown>
+      </div>
+    );
+  };
+
   return (
     <div>
       <h1>OpenAI Text-to-Speech Example</h1>
@@ -118,7 +155,7 @@ export const Initializer = () => {
       </form>
       <div>
         <h2>Text Response:</h2>
-        <p>{textResponse}</p>
+        <EnhancedExampleComponent markdownText={textResponse} />
       </div>
       <audio
         ref={audioRef}
