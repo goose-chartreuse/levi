@@ -1,9 +1,12 @@
 "use client";
+
 import { useState } from "react";
+
 import { useSpeechRecognition, useAudioAutoPlay } from "@/hooks";
-import ReactMarkdown from "react-markdown";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { atomDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { fetchOpenai, fetchOpenaiSpeech } from "@/fetchers";
+import {Button} from '@/components'
+
+import { Textarea, Box, Flex } from '@chakra-ui/react'
 
 export const Initializer = () => {
   const [prompt, setPrompt] = useState("");
@@ -23,65 +26,32 @@ export const Initializer = () => {
 
   const sendRequestToOpenAI = async (textInput: string) => {
     try {
-      const response = await fetch("/api/openai", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ prompt: textInput }),
-      });
+      const response = await fetchOpenai(textInput);
 
-      if (!response.ok) {
-        throw new Error("Network response was not ok");
-      }
+      if (response?.status === 200) {
+        setTextResponse(response.data.result);
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder("utf-8");
-      setTextResponse("");
-      let receivedText = "";
-      let partialChunk = "";
+        const speechResponse = await fetchOpenaiSpeech(response.data.result);
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+        if (speechResponse) {
+          if (speechResponse.status === 200) {
+            const blob = new Blob([speechResponse.data], { type: "audio/mp3" });
+            const blobUrl = URL.createObjectURL(blob);
 
-        const textChunk = decoder.decode(value);
-        partialChunk += textChunk;
-
-        const messages = partialChunk.split("\n\n");
-
-        // Process all complete messages except the last one
-        for (let i = 0; i < messages.length - 1; i++) {
-          const message = messages[i];
-          if (message.startsWith("data: ")) {
-            const jsonData = message.substring(6);
-
-            if (jsonData !== "[DONE]") {
-              try {
-                const parsed = JSON.parse(jsonData);
-                const content = parsed.choices[0]?.delta?.content || "";
-                receivedText += content;
-                setTextResponse((prev) => prev + content);
-              } catch (e) {
-                console.error("Failed to parse JSON:", e);
-              }
-            } else {
-              console.log("Streaming complete.");
-            }
+            setAudioSrc(blobUrl);
           }
         }
-
-        // Keep the last partial chunk for the next loop iteration
-        partialChunk = messages[messages.length - 1];
       }
     } catch (error) {
-      console.error("Error fetching data:", error);
+      console.error("Error:", error);
     }
   };
 
   const handleSubmit = async (e) => {
     if (prompt === "") return;
+
     if (e) e.preventDefault();
+
     sendRequestToOpenAI(prompt);
   };
 
@@ -99,71 +69,37 @@ export const Initializer = () => {
     }
   };
 
-  const EnhancedExampleComponent = ({ markdownText }) => {
-    return (
-      <div className="markdown-container">
-        <ReactMarkdown
-          components={{
-            code: (props) => {
-              console.log(props);
-
-              return (
-                <SyntaxHighlighter
-                  language={props.lang}
-                  style={atomDark}
-                  customStyle={{
-                    whiteSpace: "pre-wrap",
-                    fontFamily: "monospace",
-                    backgroundColor: "#f0f0f0",
-                    padding: "10px",
-                    borderRadius: "4px",
-                    overflowX: "auto",
-                  }}
-                >
-                  {props.children}
-                </SyntaxHighlighter>
-              );
-            },
-          }}
-          className="code-container"
-        >
-          {markdownText}
-        </ReactMarkdown>
-      </div>
-    );
-  };
-
   return (
-    <div>
-      <h1>OpenAI Text-to-Speech Example</h1>
-      <div>
-        <button onClick={handleStartListening} disabled={isListening}>
+    <Flex flexDir='column' gap="12px">
+      <Flex gap='12px'>
+        <Button onClick={handleStartListening} disabled={isListening}>
           Enable Speech-to-Text
-        </button>
-        <button onClick={handleStopListening} disabled={!isListening}>
+        </Button>
+        <Button onClick={handleStopListening} disabled={!isListening}>
           Disable Speech-to-Text
-        </button>
-      </div>
+        </Button>
+      </Flex>
       <form onSubmit={handleSubmit}>
-        <textarea
+        <Flex flexDir="column" gap="12px">
+        <Textarea
           value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          rows="4"
-          cols="50"
+          onChange={(e) => setPrompt(e.target.value)}  
         />
-        <button type="submit">Generate Response</button>
+        <Button type="submit">Generate Response</Button>
+        </Flex>
       </form>
-      <div>
+      <Flex flexDir="column" gap="12px">
         <h2>Text Response:</h2>
-        <EnhancedExampleComponent markdownText={textResponse} />
-      </div>
+        <Box padding='12px' backgroundColor="#333" borderRadius="4px">{textResponse}</Box>
+      </Flex>
       <audio
+        style={{display: 'none'}}
         ref={audioRef}
         onPlay={() => stopRecognition()}
         onEnded={() => startRecognition()}
         src={audioSrc}
         controls
       />
-    </div>
+    </Flex>
   );
 };
