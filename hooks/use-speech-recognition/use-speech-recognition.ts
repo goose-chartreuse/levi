@@ -17,12 +17,9 @@ export const useSpeechRecognition = ({
       recognition.onresult = (event) => {
         const lastResult = event.results[event.resultIndex];
 
-        console.log(lastResult);
-
         if (lastResult.isFinal) {
           const textSpeech = lastResult[0].transcript;
 
-          console.log("text sent to prompt", lastResult[0].transcript);
           onCompletedSpeech(textSpeech);
         }
       };

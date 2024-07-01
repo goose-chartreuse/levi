@@ -2,7 +2,11 @@ import axios from "axios";
 
 export const fetchOpenai = async (textInput: string) => {
   try {
-    const response = await axios.post("/api/openai", { prompt: textInput });
+    const response = await axios.post(
+      "/api/openai",
+      { prompt: textInput },
+      { responseType: "stream" }
+    );
 
     return response;
   } catch (error) {

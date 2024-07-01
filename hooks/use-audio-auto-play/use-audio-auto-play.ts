@@ -7,8 +7,6 @@ export const useAudioAutoPlay = () => {
   useEffect(() => {
     const audioNode = audioElement.current;
 
-    console.log(audioNode, "OOOOO");
-
     if (audioSrc && audioNode) {
       audioNode.src = audioSrc;
       audioNode.load();
